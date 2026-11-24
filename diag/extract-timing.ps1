@@ -31,7 +31,6 @@ function Measure-Step([string]$name, [scriptblock]$block) {
 function Expand-With([string]$name, [string]$target, [scriptblock]$block) {
 	New-Item -ItemType Directory -Force -Path $target | Out-Null
 	Measure-Step $name $block
-	Remove-Item -Recurse -Force $target
 }
 
 function Expand-ZipParallel([string]$target) {
@@ -87,9 +86,9 @@ foreach ($drive in $Drives) {
 if ($SkipDefender) { return }
 
 Add-MpPreference -ExclusionPath 'C:\x-excluded'
-Expand-With 'Git tar + zstd -> C: with Defender exclusion' 'C:\x-excluded' { & $gitTar --force-local -xf $zst -C 'C:\x-excluded' --use-compress-program 'zstd -d' }
-Expand-With 'System32 tar, plain tar -> C: with Defender exclusion' 'C:\x-excluded' { & $bsdTar -xf $plain -C 'C:\x-excluded' }
+Expand-With 'Git tar + zstd -> C: with Defender exclusion' 'C:\x-excluded\git' { & $gitTar --force-local -xf $zst -C 'C:\x-excluded\git' --use-compress-program 'zstd -d' }
+Expand-With 'System32 tar, plain tar -> C: with Defender exclusion' 'C:\x-excluded\bsd' { & $bsdTar -xf $plain -C 'C:\x-excluded\bsd' }
 
 Set-MpPreference -DisableRealtimeMonitoring $true
-Expand-With 'Git tar + zstd -> C: with real-time protection off' 'C:\x-rtp-off' { & $gitTar --force-local -xf $zst -C 'C:\x-rtp-off' --use-compress-program 'zstd -d' }
-Expand-With 'System32 tar, plain tar -> C: with real-time protection off' 'C:\x-rtp-off' { & $bsdTar -xf $plain -C 'C:\x-rtp-off' }
+Expand-With 'Git tar + zstd -> C: with real-time protection off' 'C:\x-rtp-off-git' { & $gitTar --force-local -xf $zst -C 'C:\x-rtp-off-git' --use-compress-program 'zstd -d' }
+Expand-With 'System32 tar, plain tar -> C: with real-time protection off' 'C:\x-rtp-off-bsd' { & $bsdTar -xf $plain -C 'C:\x-rtp-off-bsd' }

@@ -33,7 +33,6 @@ expand() {
 	sudo mkdir -p "$target"
 	sudo chown "$USER" "$target"
 	measure "$name" "$@"
-	sudo rm -rf "$target"
 }
 
 unzip_parallel() {
@@ -73,12 +72,11 @@ measure 'pack: GNU tar + zstd' tar -cf "$zst" -C "$mise" --use-compress-program 
 measure 'zstd -d to a plain tar' zstd -d -q -f "$zst" -o "$plain"
 measure 'pack: 7-Zip zip, store only' 7z a -tzip -mx=0 -mmt=on -snl -bso0 -bsp0 "$zip" "$mise/*"
 
-for root in "$HOME"; do
-	expand "GNU tar + zstd -> $root" "$root/x-gnu-zstd" tar -xf "$zst" -C "$root/x-gnu-zstd" --use-compress-program 'zstd -d'
-	expand "GNU tar, plain tar -> $root" "$root/x-gnu-plain" tar -xf "$plain" -C "$root/x-gnu-plain"
-	expand "bsdtar, tar.zst -> $root" "$root/x-bsd-zstd" bsdtar -xf "$zst" -C "$root/x-bsd-zstd"
-	expand "bsdtar, plain tar -> $root" "$root/x-bsd-plain" bsdtar -xf "$plain" -C "$root/x-bsd-plain"
-	expand "7-Zip zip -> $root" "$root/x-7z" 7z x -mmt=on -bso0 -bsp0 "-o$root/x-7z" "$zip"
-	expand "unzip -> $root" "$root/x-unzip" unzip -q "$zip" -d "$root/x-unzip"
-	expand "Python zipfile, one process per CPU -> $root" "$root/x-par" unzip_parallel "$root/x-par"
-done
+root=$HOME
+expand "GNU tar + zstd -> $root" "$root/x-gnu-zstd" tar -xf "$zst" -C "$root/x-gnu-zstd" --use-compress-program 'zstd -d'
+expand "GNU tar, plain tar -> $root" "$root/x-gnu-plain" tar -xf "$plain" -C "$root/x-gnu-plain"
+expand "bsdtar, tar.zst -> $root" "$root/x-bsd-zstd" bsdtar -xf "$zst" -C "$root/x-bsd-zstd"
+expand "bsdtar, plain tar -> $root" "$root/x-bsd-plain" bsdtar -xf "$plain" -C "$root/x-bsd-plain"
+expand "7-Zip zip -> $root" "$root/x-7z" 7z x -mmt=on -bso0 -bsp0 "-o$root/x-7z" "$zip"
+expand "unzip -> $root" "$root/x-unzip" unzip -q "$zip" -d "$root/x-unzip"
+expand "Python zipfile, one process per CPU -> $root" "$root/x-par" unzip_parallel "$root/x-par"
