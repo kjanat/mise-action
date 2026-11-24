@@ -84478,14 +84478,14 @@ function getTarPath() {
     return __awaiter$1(this, void 0, void 0, function* () {
         switch (process.platform) {
             case 'win32': {
-                const systemTar = SystemTarPathOnWindows;
-                // See actions/cache#752.
-                if (existsSync(systemTar)) {
-                    return { path: systemTar, type: ArchiveToolType.BSD };
-                }
                 const gnuTar = yield getGnuTarPathOnWindows();
+                const systemTar = SystemTarPathOnWindows;
                 if (gnuTar) {
+                    // Use GNUtar as default on windows
                     return { path: gnuTar, type: ArchiveToolType.GNU };
+                }
+                else if (existsSync(systemTar)) {
+                    return { path: systemTar, type: ArchiveToolType.BSD };
                 }
                 break;
             }

@@ -36,7 +36,7 @@ jobs:
           mise_dir: ${{ matrix.mise_dir }}
 
   restore:
-    name: Restore (${{ matrix.drive }}:, ${{ matrix.tar }} tar, ${{ matrix.attempt }})
+    name: Restore (${{ matrix.drive }}:, ${{ matrix.action }}, ${{ matrix.attempt }})
     needs: save
     runs-on: windows-latest
     timeout-minutes: 20
@@ -44,7 +44,7 @@ jobs:
       fail-fast: false
       matrix:
         drive: [C, D]
-        tar: [Git, System32]
+        action: [jdx/mise-action@v5, fork]
         attempt: [1, 2]
     steps:
       - uses: actions/checkout@v7
@@ -54,14 +54,14 @@ jobs:
         run: rm mise.toml mise.lock
 
       - name: Set up mise with jdx/mise-action@v5
-        if: matrix.tar == 'Git'
+        if: matrix.action != 'fork'
         uses: jdx/mise-action@v5
         with:
           working_directory: diag
           mise_dir: ${{ matrix.drive == 'D' && 'D:\mise' || 'C:\Users\runneradmin\AppData\Local\mise' }}
 
-      - name: Set up mise with the patched action
-        if: matrix.tar == 'System32'
+      - name: Set up mise with the fork
+        if: matrix.action == 'fork'
         uses: ./
         with:
           working_directory: diag
@@ -74,7 +74,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        action: [jdx/mise-action@v5, patched]
+        action: [jdx/mise-action@v5, fork]
     steps:
       - uses: actions/checkout@v7
 
@@ -83,14 +83,14 @@ jobs:
         run: rm mise.toml mise.lock
 
       - name: Set up mise with jdx/mise-action@v5
-        if: matrix.action != 'patched'
+        if: matrix.action != 'fork'
         uses: jdx/mise-action@v5
         with:
           working_directory: diag
           cache: false
 
-      - name: Set up mise with the patched action
-        if: matrix.action == 'patched'
+      - name: Set up mise with the fork
+        if: matrix.action == 'fork'
         uses: ./
         with:
           working_directory: diag

@@ -4,16 +4,13 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
-patchedDependencies:
-  '@actions/cache@6.3.0': 35b03ddb1635142e1da541c87775207f934c45f6286394ec3b24875ccdc65773
-
 importers:
 
   .:
     dependencies:
       '@actions/cache':
         specifier: ^6.0.0
-        version: 6.3.0(patch_hash=35b03ddb1635142e1da541c87775207f934c45f6286394ec3b24875ccdc65773)(supports-color@8.1.1)
+        version: 6.3.0(supports-color@8.1.1)
       '@actions/core':
         specifier: ^3.0.0
         version: 3.0.1
@@ -2572,7 +2569,7 @@ packages:
 
 snapshots:
 
-  '@actions/cache@6.3.0(patch_hash=35b03ddb1635142e1da541c87775207f934c45f6286394ec3b24875ccdc65773)(supports-color@8.1.1)':
+  '@actions/cache@6.3.0(supports-color@8.1.1)':
     dependencies:
       '@actions/core': 3.0.1
       '@actions/exec': 3.0.0
