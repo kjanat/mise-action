@@ -10,60 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  cached:
-    name: Cached setup (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Keep only the go-modules tool set
-        shell: bash
-        run: rm mise.toml mise.lock
-
-      - name: Set up mise
-        uses: ./
-        with:
-          working_directory: diag
-
-      - name: Time extraction variants
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: diag/extract-timing.ps1
-
-      - name: Time extraction
-        if: runner.os == 'Linux'
-        run: diag/extract-timing.sh
-
-  vhdx:
-    name: VHDX volumes (windows-latest)
-    runs-on: windows-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Keep only the go-modules tool set
-        shell: bash
-        run: rm mise.toml mise.lock
-
-      - name: Set up mise
-        uses: ./
-        with:
-          working_directory: diag
-
-      - name: Create ReFS Dev Drive, ReFS and NTFS VHDX volumes on drive D
-        shell: pwsh
-        run: diag/new-vhdx.ps1
-
-      - name: Time extraction variants on the VHDX volumes
-        shell: pwsh
-        run: diag/extract-timing.ps1 -Drives R, F, N -SkipDefender
-
-  tar-save:
+  save:
     name: Save mise cache (${{ matrix.drive }}:)
     runs-on: windows-latest
     timeout-minutes: 20
@@ -72,7 +19,7 @@ jobs:
       matrix:
         include:
           - drive: C
-            mise_dir: ""
+            mise_dir: C:\Users\runneradmin\AppData\Local\mise
           - drive: D
             mise_dir: D:\mise
     steps:
@@ -88,9 +35,9 @@ jobs:
           working_directory: diag
           mise_dir: ${{ matrix.mise_dir }}
 
-  tar-restore:
-    name: Restore mise cache (${{ matrix.drive }}:, ${{ matrix.tar }} tar)
-    needs: tar-save
+  restore:
+    name: Restore (${{ matrix.drive }}:, ${{ matrix.tar }} tar, ${{ matrix.attempt }})
+    needs: save
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
@@ -98,6 +45,7 @@ jobs:
       matrix:
         drive: [C, D]
         tar: [Git, System32]
+        attempt: [1, 2]
     steps:
       - uses: actions/checkout@v7
 
@@ -105,34 +53,28 @@ jobs:
         shell: bash
         run: rm mise.toml mise.lock
 
-      - name: Set up mise
-        uses: ./
-        env:
-          PROGRAMFILES: ${{ matrix.tar == 'System32' && 'D:\no-git-tar' || 'C:\Program Files' }}
+      - name: Set up mise with jdx/mise-action@v5
+        if: matrix.tar == 'Git'
+        uses: jdx/mise-action@v5
         with:
           working_directory: diag
-          mise_dir: ${{ matrix.drive == 'D' && 'D:\mise' || '' }}
+          mise_dir: ${{ matrix.drive == 'D' && 'D:\mise' || 'C:\Users\runneradmin\AppData\Local\mise' }}
 
-      - name: Write a folder for actions/cache to save
-        shell: pwsh
-        run: New-Item -ItemType File -Force -Path D:\probe\file.txt | Out-Null
-
-      - name: Cache a folder with actions/cache
-        uses: actions/cache@v6
-        env:
-          PROGRAMFILES: ${{ matrix.tar == 'System32' && 'D:\no-git-tar' || 'C:\Program Files' }}
+      - name: Set up mise with the patched action
+        if: matrix.tar == 'System32'
+        uses: ./
         with:
-          path: D:\probe
-          key: probe-${{ matrix.drive }}-${{ matrix.tar }}-${{ github.run_id }}-${{ github.run_attempt }}
+          working_directory: diag
+          mise_dir: ${{ matrix.drive == 'D' && 'D:\mise' || 'C:\Users\runneradmin\AppData\Local\mise' }}
 
   cold:
-    name: Cold install (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: Cold install (${{ matrix.action }})
+    runs-on: windows-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        action: [jdx/mise-action@v5, patched]
     steps:
       - uses: actions/checkout@v7
 
@@ -140,7 +82,15 @@ jobs:
         shell: bash
         run: rm mise.toml mise.lock
 
-      - name: Set up mise without cache
+      - name: Set up mise with jdx/mise-action@v5
+        if: matrix.action != 'patched'
+        uses: jdx/mise-action@v5
+        with:
+          working_directory: diag
+          cache: false
+
+      - name: Set up mise with the patched action
+        if: matrix.action == 'patched'
         uses: ./
         with:
           working_directory: diag

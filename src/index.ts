@@ -36,6 +36,7 @@ import { toolVersionOutputs } from './tool-versions.js'
 import { buildInstallCommand } from './install-args.js'
 import { parseManagedPaths, selectPathAdditions } from './managed-paths.js'
 import { TreeStats, timed, treeStats, writeTimingSummary } from './timing.js'
+import { workspaceDataDir } from './data-dir.js'
 
 // Default cache key template
 const DEFAULT_CACHE_KEY_TEMPLATE =
@@ -60,6 +61,7 @@ async function run(): Promise<void> {
     cacheRetryBudgetMs('restore')
     cacheRetryBudgetMs('save')
     setMiseEnv()
+    setWorkspaceDataDir()
     await setToolVersions()
     await setMiseToml()
 
@@ -369,6 +371,14 @@ function checkMiseSupportsRedacted(): boolean {
   }
 
   return false
+}
+
+function setWorkspaceDataDir(): void {
+  if (core.getInput('mise_dir')) return
+  const dataDir = workspaceDataDir(process.env, process.platform)
+  if (!dataDir) return
+  core.info(`Setting MISE_DATA_DIR=${dataDir}`)
+  core.exportVariable('MISE_DATA_DIR', dataDir)
 }
 
 /**

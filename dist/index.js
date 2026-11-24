@@ -84478,14 +84478,14 @@ function getTarPath() {
     return __awaiter$1(this, void 0, void 0, function* () {
         switch (process.platform) {
             case 'win32': {
-                const gnuTar = yield getGnuTarPathOnWindows();
                 const systemTar = SystemTarPathOnWindows;
-                if (gnuTar) {
-                    // Use GNUtar as default on windows
-                    return { path: gnuTar, type: ArchiveToolType.GNU };
-                }
-                else if (existsSync(systemTar)) {
+                // See actions/cache#752.
+                if (existsSync(systemTar)) {
                     return { path: systemTar, type: ArchiveToolType.BSD };
+                }
+                const gnuTar = yield getGnuTarPathOnWindows();
+                if (gnuTar) {
+                    return { path: gnuTar, type: ArchiveToolType.GNU };
                 }
                 break;
             }
@@ -142180,6 +142180,25 @@ async function writeTimingSummary(dirStats) {
     await summary$1.write();
 }
 
+// GitHub-hosted Windows runners keep the workspace on D:, which unpacks the mise cache several times faster than C:.
+function workspaceDataDir(env, platform) {
+    if (platform !== 'win32')
+        return undefined;
+    if (env.MISE_DATA_DIR || env.XDG_DATA_HOME)
+        return undefined;
+    const workspace = env.GITHUB_WORKSPACE;
+    if (!workspace)
+        return undefined;
+    const root = path$2.win32.parse(workspace).root;
+    if (!root)
+        return undefined;
+    const systemDrive = env.SYSTEMDRIVE;
+    if (systemDrive && root.toUpperCase().startsWith(systemDrive.toUpperCase())) {
+        return undefined;
+    }
+    return path$2.win32.join(root, 'mise');
+}
+
 // Default cache key template
 const DEFAULT_CACHE_KEY_TEMPLATE = '{{cache_key_prefix}}-{{platform}}{{#if version}}-{{version}}{{/if}}{{#if mise_env}}-{{mise_env}}{{/if}}{{#if install_args_hash}}-{{install_args_hash}}{{/if}}{{#if bootstrap_hash}}-{{bootstrap_hash}}{{/if}}{{#if plugins_hash}}-{{plugins_hash}}{{/if}}{{#if cache_period}}-p{{cache_period}}{{/if}}-{{#if file_hash}}{{file_hash}}{{else}}no-config{{/if}}';
 const ROOT_MISE_LOCK_FILE_PATTERNS = [/^\.?mise(?:\.[^.]+)?\.lock$/];
@@ -142198,6 +142217,7 @@ async function run() {
         cacheRetryBudgetMs('restore');
         cacheRetryBudgetMs('save');
         setMiseEnv();
+        setWorkspaceDataDir();
         await setToolVersions();
         await setMiseToml();
         let cacheKey;
@@ -142467,6 +142487,15 @@ function checkMiseSupportsRedacted() {
             return true;
     }
     return false;
+}
+function setWorkspaceDataDir() {
+    if (getInput('mise_dir'))
+        return;
+    const dataDir = workspaceDataDir(process.env, process.platform);
+    if (!dataDir)
+        return;
+    info(`Setting MISE_DATA_DIR=${dataDir}`);
+    exportVariable('MISE_DATA_DIR', dataDir);
 }
 /**
  * Export the `mise_env` input as MISE_ENV. This runs before the cache key is
