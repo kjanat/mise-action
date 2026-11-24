@@ -63,6 +63,68 @@ jobs:
         shell: pwsh
         run: diag/extract-timing.ps1 -Drives R, F, N -SkipDefender
 
+  tar-save:
+    name: Save mise cache (${{ matrix.drive }}:)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - drive: C
+            mise_dir: ""
+          - drive: D
+            mise_dir: D:\mise
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Keep only the go-modules tool set
+        shell: bash
+        run: rm mise.toml mise.lock
+
+      - name: Set up mise
+        uses: ./
+        with:
+          working_directory: diag
+          mise_dir: ${{ matrix.mise_dir }}
+
+  tar-restore:
+    name: Restore mise cache (${{ matrix.drive }}:, ${{ matrix.tar }} tar)
+    needs: tar-save
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        drive: [C, D]
+        tar: [Git, System32]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Keep only the go-modules tool set
+        shell: bash
+        run: rm mise.toml mise.lock
+
+      - name: Set up mise
+        uses: ./
+        env:
+          PROGRAMFILES: ${{ matrix.tar == 'System32' && 'D:\no-git-tar' || 'C:\Program Files' }}
+        with:
+          working_directory: diag
+          mise_dir: ${{ matrix.drive == 'D' && 'D:\mise' || '' }}
+
+      - name: Write a folder for actions/cache to save
+        shell: pwsh
+        run: New-Item -ItemType File -Force -Path D:\probe\file.txt | Out-Null
+
+      - name: Cache a folder with actions/cache
+        uses: actions/cache@v6
+        env:
+          PROGRAMFILES: ${{ matrix.tar == 'System32' && 'D:\no-git-tar' || 'C:\Program Files' }}
+        with:
+          path: D:\probe
+          key: probe-${{ matrix.drive }}-${{ matrix.tar }}-${{ github.run_id }}-${{ github.run_attempt }}
+
   cold:
     name: Cold install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
