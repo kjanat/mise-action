@@ -1,30 +1,82 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 mise=${XDG_DATA_HOME:-$HOME/.local/share}/mise
-archive=$RUNNER_TEMP/mise.tar.zst
-results=()
+zst=$RUNNER_TEMP/mise.tar.zst
+plain=$RUNNER_TEMP/mise.tar
+zip=$RUNNER_TEMP/mise.zip
+threads=$(nproc)
+
+summary() {
+	printf '%s\n' "$1" >>"$GITHUB_STEP_SUMMARY"
+}
 
 measure() {
 	local name=$1
 	shift
-	local start=$EPOCHREALTIME
-	"$@"
-	local seconds
+	local start=$EPOCHREALTIME status=0
+	"$@" || status=$?
+	local seconds result
 	seconds=$(awk -v s="$start" -v e="$EPOCHREALTIME" 'BEGIN { printf "%.1f", e - s }')
-	echo "$name: ${seconds}s"
-	results+=("| $name | $seconds |")
+	if ((status)); then
+		result="failed with exit code $status after ${seconds}s"
+	else
+		result=$seconds
+	fi
+	echo "$name: $result"
+	summary "| $name | $result |"
 }
 
-df -h "$mise" "$RUNNER_TEMP"
+expand() {
+	local name=$1 target=$2
+	shift 2
+	sudo mkdir -p "$target"
+	sudo chown "$USER" "$target"
+	measure "$name" "$@"
+	sudo rm -rf "$target"
+}
+
+unzip_parallel() {
+	python3 - "$zip" "$1" "$threads" <<'EOF'
+import multiprocessing, sys, zipfile
+from concurrent.futures import ProcessPoolExecutor
+
+archive, target, threads = sys.argv[1], sys.argv[2], int(sys.argv[3])
+
+def extract(part):
+    with zipfile.ZipFile(archive) as z:
+        for index, info in enumerate(z.infolist()):
+            if index % threads == part:
+                z.extract(info, target)
+
+with ProcessPoolExecutor(threads, mp_context=multiprocessing.get_context("fork")) as pool:
+    list(pool.map(extract, range(threads)))
+EOF
+}
+
+df -h / /mnt "$RUNNER_TEMP"
+lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL
+echo "Logical processors: $threads"
 echo "mise dir: $mise"
+command -v bsdtar 7z unzip
 
-measure 'pack: tar + zstd' tar -cf "$archive" -C "$mise" --use-compress-program 'zstd -T0' .
-mkdir -p /tmp/x-zstd
-measure 'tar + zstd -> /tmp' tar -xf "$archive" -C /tmp/x-zstd --use-compress-program 'zstd -d'
-rm -r /tmp/x-zstd
+summary '### Extraction timings (Linux)'
+summary ''
+summary "Root disk: $(findmnt -no SOURCE /). /mnt: $(findmnt -no SOURCE /mnt). Logical processors: $threads."
+summary ''
+summary '| Step | Seconds |'
+summary '|---|---|'
 
-{
-	printf '### Extraction timings (Linux)\n\n| Step | Seconds |\n|---|---|\n'
-	printf '%s\n' "${results[@]}"
-} >>"$GITHUB_STEP_SUMMARY"
+measure 'pack: GNU tar + zstd' tar -cf "$zst" -C "$mise" --use-compress-program 'zstd -T0' .
+measure 'zstd -d to a plain tar' zstd -d -q -f "$zst" -o "$plain"
+measure 'pack: 7-Zip zip, store only' 7z a -tzip -mx=0 -mmt=on -bso0 -bsp0 "$zip" "$mise/*"
+
+for root in "$HOME" /mnt; do
+	expand "GNU tar + zstd -> $root" "$root/x-gnu-zstd" tar -xf "$zst" -C "$root/x-gnu-zstd" --use-compress-program 'zstd -d'
+	expand "GNU tar, plain tar -> $root" "$root/x-gnu-plain" tar -xf "$plain" -C "$root/x-gnu-plain"
+	expand "bsdtar, tar.zst -> $root" "$root/x-bsd-zstd" bsdtar -xf "$zst" -C "$root/x-bsd-zstd"
+	expand "bsdtar, plain tar -> $root" "$root/x-bsd-plain" bsdtar -xf "$plain" -C "$root/x-bsd-plain"
+	expand "7-Zip zip -> $root" "$root/x-7z" 7z x -mmt=on -bso0 -bsp0 "-o$root/x-7z" "$zip"
+	expand "unzip -> $root" "$root/x-unzip" unzip -q "$zip" -d "$root/x-unzip"
+	expand "Python zipfile, one process per CPU -> $root" "$root/x-par" unzip_parallel "$root/x-par"
+done
