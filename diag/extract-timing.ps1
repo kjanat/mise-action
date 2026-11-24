@@ -1,3 +1,5 @@
+param([string[]]$Drives = @('C', 'D'), [switch]$SkipDefender)
+
 $ErrorActionPreference = 'Stop'
 
 $mise = Join-Path $env:LOCALAPPDATA 'mise'
@@ -56,12 +58,12 @@ function Expand-ZipParallel([string]$target) {
 
 $defender = Get-MpComputerStatus
 Write-Host "Defender real-time protection: $($defender.RealTimeProtectionEnabled)"
-Get-Volume -DriveLetter C, D | Format-Table DriveLetter, FileSystem, Size, SizeRemaining
+Get-Volume -DriveLetter $Drives | Format-Table DriveLetter, FileSystem, Size, SizeRemaining
 Get-PhysicalDisk | Format-Table FriendlyName, MediaType, BusType, Size
 Write-Host "Logical processors: $([Environment]::ProcessorCount)"
 Write-Host "mise dir: $mise"
 
-Write-Summary '### Extraction timings (Windows)'
+Write-Summary "### Extraction timings (Windows, $($Drives -join ', '))"
 Write-Summary ''
 Write-Summary "Defender real-time protection: $($defender.RealTimeProtectionEnabled). Disks: $((Get-PhysicalDisk | ForEach-Object { "$($_.FriendlyName) ($($_.BusType))" }) -join ', '). Logical processors: $([Environment]::ProcessorCount)."
 Write-Summary ''
@@ -70,9 +72,9 @@ Write-Summary '|---|---|'
 
 Measure-Step 'pack: Git tar + zstd' { & $gitTar --force-local -cf $zst -C $mise --use-compress-program 'zstd -T0' . }
 Measure-Step 'zstd -d to a plain tar' { zstd -d -q -f $zst -o $plain }
-Measure-Step 'pack: 7-Zip zip, store only' { & $sevenZip a -tzip -mx=0 -mmt=on -bso0 -bsp0 $zip "$mise\*" }
+Measure-Step 'pack: 7-Zip zip, store only' { & $sevenZip a -tzip -mx=0 -mmt=on -snl -bso0 -bsp0 $zip "$mise\*" }
 
-foreach ($drive in 'C', 'D') {
+foreach ($drive in $Drives) {
 	Expand-With "Git tar + zstd -> ${drive}:" "${drive}:\x-git-zstd" { & $gitTar --force-local -xf $zst -C "${drive}:\x-git-zstd" --use-compress-program 'zstd -d' }
 	Expand-With "Git tar, plain tar -> ${drive}:" "${drive}:\x-git-plain" { & $gitTar --force-local -xf $plain -C "${drive}:\x-git-plain" }
 	Expand-With "System32 tar, tar.zst -> ${drive}:" "${drive}:\x-bsd-zstd" { & $bsdTar -xf $zst -C "${drive}:\x-bsd-zstd" }
@@ -81,6 +83,8 @@ foreach ($drive in 'C', 'D') {
 	Expand-With ".NET ZipFile -> ${drive}:" "${drive}:\x-dotnet" { [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, "${drive}:\x-dotnet", $true) }
 	Expand-With ".NET ZipFile, one reader per CPU -> ${drive}:" "${drive}:\x-par" { Expand-ZipParallel "${drive}:\x-par" }
 }
+
+if ($SkipDefender) { return }
 
 Add-MpPreference -ExclusionPath 'C:\x-excluded'
 Expand-With 'Git tar + zstd -> C: with Defender exclusion' 'C:\x-excluded' { & $gitTar --force-local -xf $zst -C 'C:\x-excluded' --use-compress-program 'zstd -d' }

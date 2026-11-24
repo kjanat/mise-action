@@ -54,7 +54,9 @@ with ProcessPoolExecutor(threads, mp_context=multiprocessing.get_context("fork")
 EOF
 }
 
-df -h / /mnt "$RUNNER_TEMP"
+sudo apt-get install --yes --no-install-recommends libarchive-tools
+
+df -h / "$RUNNER_TEMP"
 lsblk -o NAME,SIZE,TYPE,MOUNTPOINT,MODEL
 echo "Logical processors: $threads"
 echo "mise dir: $mise"
@@ -62,16 +64,16 @@ command -v bsdtar 7z unzip
 
 summary '### Extraction timings (Linux)'
 summary ''
-summary "Root disk: $(findmnt -no SOURCE /). /mnt: $(findmnt -no SOURCE /mnt). Logical processors: $threads."
+summary "Root disk: $(findmnt -no SOURCE /). Logical processors: $threads."
 summary ''
 summary '| Step | Seconds |'
 summary '|---|---|'
 
 measure 'pack: GNU tar + zstd' tar -cf "$zst" -C "$mise" --use-compress-program 'zstd -T0' .
 measure 'zstd -d to a plain tar' zstd -d -q -f "$zst" -o "$plain"
-measure 'pack: 7-Zip zip, store only' 7z a -tzip -mx=0 -mmt=on -bso0 -bsp0 "$zip" "$mise/*"
+measure 'pack: 7-Zip zip, store only' 7z a -tzip -mx=0 -mmt=on -snl -bso0 -bsp0 "$zip" "$mise/*"
 
-for root in "$HOME" /mnt; do
+for root in "$HOME"; do
 	expand "GNU tar + zstd -> $root" "$root/x-gnu-zstd" tar -xf "$zst" -C "$root/x-gnu-zstd" --use-compress-program 'zstd -d'
 	expand "GNU tar, plain tar -> $root" "$root/x-gnu-plain" tar -xf "$plain" -C "$root/x-gnu-plain"
 	expand "bsdtar, tar.zst -> $root" "$root/x-bsd-zstd" bsdtar -xf "$zst" -C "$root/x-bsd-zstd"

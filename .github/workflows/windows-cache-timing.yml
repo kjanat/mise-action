@@ -39,6 +39,30 @@ jobs:
         if: runner.os == 'Linux'
         run: diag/extract-timing.sh
 
+  vhdx:
+    name: VHDX volumes (windows-latest)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Keep only the go-modules tool set
+        shell: bash
+        run: rm mise.toml mise.lock
+
+      - name: Set up mise
+        uses: ./
+        with:
+          working_directory: diag
+
+      - name: Create ReFS Dev Drive, ReFS and NTFS VHDX volumes on drive D
+        shell: pwsh
+        run: diag/new-vhdx.ps1
+
+      - name: Time extraction variants on the VHDX volumes
+        shell: pwsh
+        run: diag/extract-timing.ps1 -Drives R, F, N -SkipDefender
+
   cold:
     name: Cold install (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
