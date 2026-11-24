@@ -35,6 +35,7 @@ import { selectMiseRelease } from './release-index.js'
 import { toolVersionOutputs } from './tool-versions.js'
 import { buildInstallCommand } from './install-args.js'
 import { parseManagedPaths, selectPathAdditions } from './managed-paths.js'
+import { TreeStats, timed, treeStats, writeTimingSummary } from './timing.js'
 
 // Default cache key template
 const DEFAULT_CACHE_KEY_TEMPLATE =
@@ -63,8 +64,13 @@ async function run(): Promise<void> {
     await setMiseToml()
 
     let cacheKey: string | undefined
+    let dirStats: TreeStats | undefined
     if (core.getBooleanInput('cache')) {
-      cacheKey = await restoreMiseCache()
+      cacheKey = await timed('restore cache', restoreMiseCache)
+      dirStats = await timed('count mise dir', () => treeStats(miseDir()))
+      core.info(
+        `mise dir: ${dirStats.files} files, ${dirStats.dirs} directories, ${(dirStats.bytes / 1024 / 1024).toFixed(1)} MiB`
+      )
     } else {
       core.setOutput('cache-hit', false)
     }
@@ -92,7 +98,9 @@ async function run(): Promise<void> {
     const minimumReleaseAge = core.getInput('minimum_release_age')
     const autoUpdate = core.getBooleanInput('auto_update')
     const fetchFromGitHub = core.getBooleanInput('fetch_from_github')
-    await setupMise(version, fetchFromGitHub, minimumReleaseAge, autoUpdate)
+    await timed('setup mise', () =>
+      setupMise(version, fetchFromGitHub, minimumReleaseAge, autoUpdate)
+    )
     await setEnvVars()
     if (core.getBooleanInput('reshim')) {
       await miseReshim()
@@ -101,9 +109,9 @@ async function run(): Promise<void> {
     await miseInstallPlugins()
     if (core.getBooleanInput('install')) {
       if (core.getBooleanInput('bootstrap')) {
-        await miseBootstrap()
+        await timed('mise bootstrap', miseBootstrap)
       } else {
-        await miseInstall()
+        await timed('mise install', miseInstall)
       }
       if (cacheKey && core.getBooleanInput('cache_save')) {
         if (core.getBooleanInput('cache_save_post')) {
@@ -111,16 +119,17 @@ async function run(): Promise<void> {
           // monorepo sub-project or task-level tools) are included.
           core.saveState('SAVE_CACHE_KEY', cacheKey)
         } else {
-          await saveCache(cacheKey)
+          await timed('save cache', () => saveCache(cacheKey))
         }
       }
     }
-    await miseLs()
+    await timed('mise ls', miseLs)
     await setToolVersionOutputs()
     const loadEnv = core.getBooleanInput('env')
     if (loadEnv) {
-      await exportMiseEnv()
+      await timed('export env', exportMiseEnv)
     }
+    await writeTimingSummary(dirStats)
   } catch (err) {
     if (err instanceof Error) core.setFailed(err.message)
     else throw err

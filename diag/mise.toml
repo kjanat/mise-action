@@ -1,0 +1,14 @@
+[tools]
+go         = "1.27.4"
+kprint     = "0.64.1"
+tinygo     = "0.44.0"
+wasm-tools = "1.263.0"
+wasmtime   = "51.0.0"
+
+[tools."github:WebAssembly/binaryen"]
+version        = "133"
+version_prefix = "version_"
+
+[tool_alias]
+kprint = "github:kjanat/kprint"
+tinygo = "github:tinygo-org/tinygo"

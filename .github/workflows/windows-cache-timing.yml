@@ -1,0 +1,53 @@
+name: Windows cache timing
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - diag/windows-cache-timing
+
+permissions:
+  contents: read
+
+jobs:
+  cached:
+    name: Cached setup (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up mise
+        uses: ./
+        with:
+          working_directory: diag
+
+      - name: Time extraction variants
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: diag/extract-timing.ps1
+
+      - name: Time extraction
+        if: runner.os == 'Linux'
+        run: diag/extract-timing.sh
+
+  cold:
+    name: Cold install (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up mise without cache
+        uses: ./
+        with:
+          working_directory: diag
+          cache: false
