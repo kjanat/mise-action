@@ -21,6 +21,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Keep only the go-modules tool set
+        shell: bash
+        run: rm mise.toml mise.lock
+
       - name: Set up mise
         uses: ./
         with:
@@ -45,6 +49,10 @@ jobs:
         os: [ubuntu-latest, windows-latest]
     steps:
       - uses: actions/checkout@v7
+
+      - name: Keep only the go-modules tool set
+        shell: bash
+        run: rm mise.toml mise.lock
 
       - name: Set up mise without cache
         uses: ./
