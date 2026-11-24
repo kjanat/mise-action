@@ -29,6 +29,14 @@ function Measure-Step([string]$name, [scriptblock]$block) {
 }
 
 function Expand-With([string]$name, [string]$target, [scriptblock]$block) {
+	$needed = (Get-Item $plain).Length
+	$free = (Get-Volume -DriveLetter $target[0]).SizeRemaining
+	if ($free -lt 2 * $needed) {
+		$result = "skipped: $([math]::Round($free / 1GB, 1)) GiB free"
+		Write-Host "${name}: $result"
+		Write-Summary "| $name | $result |"
+		return
+	}
 	New-Item -ItemType Directory -Force -Path $target | Out-Null
 	Measure-Step $name $block
 }
