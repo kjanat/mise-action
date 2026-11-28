@@ -22,7 +22,7 @@ test('adds cargo-binstall to both Cross install selections', () => {
       MISE_DISABLE_TOOLS: 'go,rust'
     }),
     {
-      INPUT_INSTALL_ARGS: 'cargo-binstall cross cargo:rust-script',
+      INPUT_INSTALL_ARGS: 'cargo-binstall cross rust-script',
       MISE_DISABLE_TOOLS: 'go,rust'
     }
   )

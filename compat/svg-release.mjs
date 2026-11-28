@@ -17,8 +17,10 @@ export function svgReleaseEnvironment(env) {
   // runner's Rust (including the separately installed nightly on tier 3).
   const disabled = new Set((env.MISE_DISABLE_TOOLS ?? '').split(',').map(tool => tool.trim()).filter(Boolean))
   disabled.add('rust')
+  // Use the configured alias so mise exposes rust-script on the job PATH.
+  const tools = args === 'cross' ? 'cross' : 'cross rust-script'
   return {
-    INPUT_INSTALL_ARGS: `cargo-binstall ${args}`,
+    INPUT_INSTALL_ARGS: `cargo-binstall ${tools}`,
     MISE_DISABLE_TOOLS: [...disabled].join(',')
   }
 }
